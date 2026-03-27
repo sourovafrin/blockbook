@@ -24,7 +24,7 @@ func NewDogecoinRPC(config json.RawMessage, pushHandler func(bchain.Notification
 		b.(*btc.BitcoinRPC),
 	}
 	s.RPCMarshaler = btc.JSONMarshalerV1{}
-	s.ChainConfig.SupportsEstimateSmartFee = false
+	s.MinFeePerKB = 100000 // 0.001 DOGE/kB
 
 	return s, nil
 }

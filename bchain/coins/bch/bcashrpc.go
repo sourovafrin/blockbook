@@ -28,6 +28,7 @@ func NewBCashRPC(config json.RawMessage, pushHandler func(bchain.NotificationTyp
 		b.(*btc.BitcoinRPC),
 	}
 	s.ChainConfig.SupportsEstimateSmartFee = false
+	s.MinFeePerKB = 1000 // 0.00001 BCH/kB
 
 	return s, nil
 }
@@ -202,7 +203,7 @@ func (b *BCashRPC) EstimateFee(blocks int) (big.Int, error) {
 	if err != nil {
 		return r, err
 	}
-	return r, nil
+	return b.ApplyMinFee(r), nil
 }
 
 // EstimateSmartFee returns fee estimation

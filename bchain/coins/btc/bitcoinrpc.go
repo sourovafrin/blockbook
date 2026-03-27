@@ -34,6 +34,7 @@ type BitcoinRPC struct {
 	mempoolFilterScripts   string
 	mempoolUseZeroedKey    bool
 	alternativeFeeProvider alternativeFeeProviderInterface
+	MinFeePerKB            int64
 }
 
 // Configuration represents json config file
@@ -125,6 +126,7 @@ func NewBitcoinRPC(config json.RawMessage, pushHandler func(bchain.NotificationT
 // Initialize initializes BitcoinRPC instance.
 func (b *BitcoinRPC) Initialize() error {
 	b.ChainConfig.SupportsEstimateFee = false
+	b.MinFeePerKB = 1000 // 0.00001 BTC/kB
 
 	ci, err := b.GetChainInfo()
 	if err != nil {
@@ -943,6 +945,17 @@ func (b *BitcoinRPC) blockchainEstimateSmartFee(blocks int, conservative bool) (
 	return r, nil
 }
 
+// ApplyMinFee enforces the minimum fee floor: max(fee, MinFeePerKB).
+func (b *BitcoinRPC) ApplyMinFee(fee big.Int) big.Int {
+	if b.MinFeePerKB > 0 {
+		minFee := big.NewInt(b.MinFeePerKB)
+		if fee.Cmp(minFee) < 0 {
+			return *minFee
+		}
+	}
+	return fee
+}
+
 // EstimateSmartFee returns fee estimation
 func (b *BitcoinRPC) EstimateSmartFee(blocks int, conservative bool) (big.Int, error) {
 	// use alternative estimator if enabled
@@ -950,10 +963,14 @@ func (b *BitcoinRPC) EstimateSmartFee(blocks int, conservative bool) (big.Int, e
 		r, err := b.alternativeFeeProvider.estimateFee(blocks)
 		// in case of error, fallback to default estimator
 		if err == nil {
-			return r, nil
+			return b.ApplyMinFee(r), nil
 		}
 	}
-	return b.blockchainEstimateSmartFee(blocks, conservative)
+	r, err := b.blockchainEstimateSmartFee(blocks, conservative)
+	if err != nil {
+		return r, err
+	}
+	return b.ApplyMinFee(r), nil
 }
 
 // EstimateFee returns fee estimation.
@@ -965,7 +982,7 @@ func (b *BitcoinRPC) EstimateFee(blocks int) (big.Int, error) {
 		r, err = b.alternativeFeeProvider.estimateFee(blocks)
 		// in case of error, fallback to default estimator
 		if err == nil {
-			return r, nil
+			return b.ApplyMinFee(r), nil
 		}
 	}
 	// use EstimateSmartFee if EstimateFee is not supported
@@ -990,7 +1007,7 @@ func (b *BitcoinRPC) EstimateFee(blocks int) (big.Int, error) {
 	if err != nil {
 		return r, err
 	}
-	return r, nil
+	return b.ApplyMinFee(r), nil
 }
 
 // LongTermFeeRate returns smallest fee rate from historic blocks.

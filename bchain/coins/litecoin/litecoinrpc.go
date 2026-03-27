@@ -26,6 +26,7 @@ func NewLitecoinRPC(config json.RawMessage, pushHandler func(bchain.Notification
 	}
 	s.RPCMarshaler = btc.JSONMarshalerV2{}
 	s.ChainConfig.SupportsEstimateFee = false
+	s.MinFeePerKB = 1000 // 0.00001 LTC/kB
 
 	return s, nil
 }
@@ -63,11 +64,14 @@ func (b *LitecoinRPC) Initialize() error {
 // which introduced MWEB fields to the transaction data and made the serialized block incompatible with Bitcoin wire protocol
 func (b *LitecoinRPC) GetBlock(hash string, height uint32) (*bchain.Block, error) {
 	var err error
-	if hash == "" && height > 0 {
+	if hash == "" {
 		hash, err = b.GetBlockHash(height)
 		if err != nil {
 			return nil, err
 		}
+	}
+	if height == 0 {
+		return b.GetBlockFull(hash)
 	}
 
 	glog.V(1).Info("rpc: getblock (verbosity=1) ", hash)

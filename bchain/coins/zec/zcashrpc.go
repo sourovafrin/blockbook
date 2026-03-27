@@ -48,6 +48,7 @@ func NewZCashRPC(config json.RawMessage, pushHandler func(bchain.NotificationTyp
 	}
 	z.RPCMarshaler = JSONMarshalerV1Zebra{}
 	z.ChainConfig.SupportsEstimateSmartFee = false
+	z.MinFeePerKB = 1000 // 0.00001 ZEC/kB
 	return z, nil
 }
 
