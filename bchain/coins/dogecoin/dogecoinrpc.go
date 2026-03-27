@@ -2,6 +2,7 @@ package dogecoin
 
 import (
 	"encoding/json"
+	"math/big"
 
 	"github.com/golang/glog"
 	"github.com/trezor/blockbook/bchain"
@@ -24,9 +25,40 @@ func NewDogecoinRPC(config json.RawMessage, pushHandler func(bchain.Notification
 		b.(*btc.BitcoinRPC),
 	}
 	s.RPCMarshaler = btc.JSONMarshalerV1{}
+	s.ChainConfig.SupportsEstimateFee = false
 	s.MinFeePerKB = 100000 // 0.001 DOGE/kB
 
 	return s, nil
+}
+
+// EstimateSmartFee returns fee estimation.
+// Dogecoin's estimatesmartfee only accepts nblocks, not estimate_mode.
+func (b *DogecoinRPC) EstimateSmartFee(blocks int, conservative bool) (big.Int, error) {
+	glog.V(1).Info("rpc: estimatesmartfee ", blocks)
+
+	res := btc.ResEstimateSmartFee{}
+	req := struct {
+		Method string `json:"method"`
+		Params []int  `json:"params"`
+	}{
+		Method: "estimatesmartfee",
+		Params: []int{blocks},
+	}
+
+	err := b.Call(&req, &res)
+
+	var r big.Int
+	if err != nil {
+		return r, err
+	}
+	if res.Error != nil {
+		return r, res.Error
+	}
+	r, err = b.Parser.AmountToBigInt(res.Result.Feerate)
+	if err != nil {
+		return r, err
+	}
+	return b.ApplyMinFee(r), nil
 }
 
 // Initialize initializes DogecoinRPC instance.
